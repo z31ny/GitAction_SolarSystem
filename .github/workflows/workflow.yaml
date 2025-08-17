@@ -178,7 +178,7 @@ jobs:
 
         - name: update Kubeconfig
           run: |
-            aws eks --region us-east-1 update-kubeconfig --name stage-eks-cluster
+            aws eks --region us-east-1 update-kubeconfig --name sprints-cluster-0
         - name: trigger app Deployment
           uses: statsig-io/kubectl-via-eksctl@main
 

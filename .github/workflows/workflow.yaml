@@ -161,34 +161,4 @@ jobs:
               terraform apply -auto-approve
               fi
           working-directory: ./Terraform/team-01
-  deploy:
-        needs: terraform
-        runs-on: ubuntu-latest
-        name: deploy to eks
-        steps:
-        - name: Checkout Repo
-          uses: actions/checkout@v5
-        
-        - name: aws login
-          uses: aws-actions/configure-aws-credentials@v4.3.1
-          with:
-              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-              aws-region: us-east-1
-
-        - name: update Kubeconfig
-          run: |
-            aws eks --region us-east-1 update-kubeconfig --name stage-eks-cluster
-        - name: trigger app Deployment
-          uses: statsig-io/kubectl-via-eksctl@main
-
-        - name: deploy k8s
-          run: |
-            kubectl apply -f kubernates/deployment.yaml
-            kubectl apply -f kubernates/service.yaml
-          working-directory: ./kubernates
-
-        - name: Verify Deployment
-          run: |
-                kubectl get pods  
-                kubectl get svc
+  

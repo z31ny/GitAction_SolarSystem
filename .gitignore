@@ -3,4 +3,10 @@ solar-system.png
 .nyc_output
 .talismanrc
 coverage
+.terraform/
 test-results.xml
+node_modules/
+coverage/
+test-results.xml
+solar-system.png
+.nyc_output/

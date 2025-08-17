@@ -15,7 +15,7 @@ jobs:
     name: unit_testing
     strategy:
       matrix:
-        nodejs-version: [ 18, 19, 20 ]
+        nodejs-version: [18, 19, 20]
         os: [ ubuntu-latest, windows-latest, macos-latest ]
         exclude:
         - nodejs-version: 18
@@ -34,4 +34,12 @@ jobs:
       run: npm install
 
     - name: Run Tests
+      id: nodeNodeJs-unit-testing-step
       run: npm test
+
+    - name: archive test results
+      if: steps.nodeNodeJs-unit-testing-step.outcome == 'failure' || steps.nodeNodeJs-unit-testing-step.outcome == 'success'
+      uses: actions/upload-artifact@v4.6.2
+      with:
+        name: sp-test-results-${{github.sha}}
+        path: test-results.xml

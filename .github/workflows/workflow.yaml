@@ -18,8 +18,8 @@ jobs:
         nodejs-version: [18, 19, 20]
         os: [ ubuntu-latest, windows-latest, macos-latest ]
         exclude:
-        - nodejs-version: 18
-          os: macos-latest-latest
+          nodejs-version: 18
+          os: macos-latest
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout Repo

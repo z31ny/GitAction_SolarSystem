@@ -14,8 +14,8 @@ resource "aws_s3_bucket_versioning" "versioning" {
   }
 }
 
-resource "aws_dynamodb_table" "terraform_locks" {
-  name         = "terraform-locks"
+resource "aws_dynamodb_table" "terraform_lockss" {
+  name         = "terraform-lockss"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 

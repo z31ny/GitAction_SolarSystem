@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+        - feature_brancheA
         - main
 jobs:
   unit_testing:

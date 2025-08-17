@@ -1,9 +1,10 @@
 terraform {
   backend "s3" {
-    bucket         = "terraform-states-wahdan-03"
-    key            = "terraform.tfstate"
-    region        = "us-east-1"
-    dynamodb_table = "terraform-locks-2"
-    encrypt       = true
+    bucket         = "stagebucket12"
+    key            = "stage-eks1/terraform.tfstate"
+    region         = "us-west-2"
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
   }
 }
+

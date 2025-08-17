@@ -17,18 +17,18 @@ jobs:
          aws-region: us-east-1
      - name: Create S3 bucket (if not exists)
        run: |
-        if ! aws s3api head-bucket --bucket wahdan-state-bucket-1 2>/dev/null; then
+        if ! aws s3api head-bucket --bucket wahdan-state-bucket-2 2>/dev/null; then
           aws s3api create-bucket \
-            --bucket wahdan-state-bucket-1 \
+            --bucket wahdan-state-bucket-2 \
             --region us-east-1
-          echo "S3 bucket wahdan-state-bucket created"
+          echo "S3 bucket wahdan-state-bucket-2 created"
         else
           echo "S3 bucket already exists"
         fi
 
      - name: Create DynamoDB table (if not exists)
        run: |
-         if ! aws dynamodb describe-table --table-name terraform-lock >/dev/null 2>&1; then
+         if ! aws dynamodb describe-table --table-name terraform-lock-1 >/dev/null 2>&1; then
            aws dynamodb create-table \
              --table-name terraform-lock-1 \
              --attribute-definitions AttributeName=LockID,AttributeType=S \

@@ -122,3 +122,66 @@ jobs:
             tags: |
               ${{vars.DOCKER_USERNAME}}/solar-system:${{github.sha}}
               ghcr.io/abdullahwahdan/solar-system:fd763e67db03ecb5bb601a048c5f913a8ba9bdcb
+
+  terraform:
+        name: terraform-deployment
+        needs: [docker, code-coverage, unit_testing]
+        runs-on: ubuntu-latest
+        environment: production
+        steps:
+        - name: Checkout Repo
+          uses: actions/checkout@v5
+        
+        - name: aws login
+          uses: aws-actions/configure-aws-credentials@v4.3.1
+          with:
+              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              aws-region: us-east-1
+
+        - name: Setup Terraform
+          uses: hashicorp/setup-terraform@v3.1.2
+          with:
+            terraform_version: 1.1.7
+        
+        - name: Terraform Init
+          run: terraform init
+          working-directory: ./Terraform
+        
+        - name: Terraform Plan
+          run: terraform plan
+          working-directory: ./Terraform
+        
+        - name: terraform Apply
+          run: terraaform apply -auto-approve
+  deploy:
+        needs: terraform
+        runs-on: ubuntu-latest
+        name: deploy to eks
+        steps:
+        - name: Checkout Repo
+          uses: actions/checkout@v5
+        
+        - name: aws login
+          uses: aws-actions/configure-aws-credentials@v4.3.1
+          with:
+              aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+              aws-region: us-east-1
+
+        - name: update Kubeconfig
+          run: |
+            aws eks --region us-east-1 update-kubeconfig --name stage-eks-cluster
+        - name: trigger app Deployment
+          uses: statsig-io/kubectl-via-eksctl@main
+
+        - name: deploy k8s
+          run: |
+            kubectl apply -f kubernates/deployment.yaml
+            kubectl apply -f kubernates/service.yaml
+          working-directory: ./kubernates
+
+        - name: Verify Deployment
+          run: |
+                kubectl get pods  
+                kubectl get svc

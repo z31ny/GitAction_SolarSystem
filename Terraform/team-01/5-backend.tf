@@ -1,9 +1,9 @@
 #terraform {
 #  backend "s3" {
-#    bucket         = "terraform-states-wahdann"
+#    bucket         = "terraform-states-wahdan-03"
 #    key            = "terraform.tfstate"
 #    region        = "us-east-1"
-#    dynamodb_table = "terraform-lockss"
+#    dynamodb_table = "terraform-locks-2"
 #    encrypt       = true
 #  }
 #}

@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "terraform_states" {
-  bucket = "terraform-states-wahdann"
+  bucket = "terraform-states-wahdan-03"
 
   tags = {
     Name        = "TerraformStateBucket"
@@ -14,8 +14,8 @@ resource "aws_s3_bucket_versioning" "versioning" {
   }
 }
 
-resource "aws_dynamodb_table" "terraform_lockss" {
-  name         = "terraform-lockss"
+resource "aws_dynamodb_table" "terraform_locks-2" {
+  name         = "terraform-locks-2"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 

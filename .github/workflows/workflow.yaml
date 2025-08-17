@@ -73,6 +73,7 @@ jobs:
 
   docker:
         name: containerization
+        needs: [unit_testing, code-coverage]
         permissions:
             packages: write
             contents: read

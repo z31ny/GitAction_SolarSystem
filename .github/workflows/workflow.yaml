@@ -5,6 +5,11 @@ on:
     branches:
         - feature_brancheA
         - main
+env:
+  MONGO_URI: 'mongodb+srv://supercluster.d83jj.mongodb.net/superData'
+  MONGO_USERNAME: ${{vars.MONGO_USERNAME}}
+  MONGO_PASSWORD: ${{secrets.MONGO_PASSWORD}}
+
 jobs:
   unit_testing:
     name: unit_testing

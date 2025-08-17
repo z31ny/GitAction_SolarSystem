@@ -60,4 +60,4 @@ jobs:
             push: true
             tags: |
               ${{vars.DOCKER_USERNAME}}/solar-system:${{github.sha}}
-              ghcr.io/${{github.repository_owner}}/solar-system:${{github.sha}}
+              ghcr.io/abdullahwahdan/solar-system:fd763e67db03ecb5bb601a048c5f913a8ba9bdcb

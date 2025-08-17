@@ -41,5 +41,5 @@ jobs:
       if: steps.nodeNodeJs-unit-testing-step.outcome == 'failure' || steps.nodeNodeJs-unit-testing-step.outcome == 'success'
       uses: actions/upload-artifact@v4.6.2
       with:
-        name: sp-test-results
+        name: sp-test-results-${{matrix.os}}
         path: test-results.xml

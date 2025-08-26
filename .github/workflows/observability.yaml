@@ -62,13 +62,15 @@ jobs:
             --set adminUser=admin,adminPassword=${{ secrets.GRAFANA_PASSWORD }} \
             --set service.type=LoadBalancer
 
-      - name: Output Service URLs
+      - name: List all services in solar-system
         run: |
-          echo "Solar System App External IP:"
-          kubectl get svc -n solar-system solar-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-          
-          echo "Prometheus External IP:"
-          kubectl get svc -n solar-system prometheus-server -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-          
-          echo "Grafana External IP:"
-          kubectl get svc -n solar-system grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+          echo "All services in solar-system namespace:"
+          kubectl get svc -n solar-system
+
+      - name: Output External IPs
+        run: |
+          echo "Fetching External IPs..."
+          for svc in $(kubectl get svc -n solar-system -o jsonpath='{.items[*].metadata.name}'); do
+            ip=$(kubectl get svc $svc -n solar-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            echo "$svc External IP: $ip"
+          done

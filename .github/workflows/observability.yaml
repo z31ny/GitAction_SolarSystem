@@ -41,27 +41,34 @@ jobs:
             --namespace solar-system --create-namespace
 
       - name: Add Prometheus Helm Repo
-        run: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-
-      - name: Update Helm Repos
-        run: helm repo update
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
 
       - name: Install Prometheus
         run: |
           helm upgrade --install prometheus prometheus-community/prometheus \
             --namespace solar-system --create-namespace
 
+      - name: Add Grafana Helm Repo
+        run: |
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo update
+
       - name: Install Grafana
         run: |
-          helm upgrade --install grafana prometheus-community/grafana \
+          helm upgrade --install grafana grafana/grafana \
             --namespace solar-system --create-namespace \
-            --set adminUser=admin,adminPassword=${{ secrets.GRAFANA_PASSWORD }}
+            --set adminUser=admin,adminPassword=${{ secrets.GRAFANA_PASSWORD }} \
+            --set service.type=LoadBalancer
 
       - name: Output Service URLs
         run: |
-          echo "Solar System App:"
+          echo "Solar System App External IP:"
           kubectl get svc -n solar-system solar-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-          echo "Prometheus:"
+          
+          echo "Prometheus External IP:"
           kubectl get svc -n solar-system prometheus-server -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
-          echo "Grafana:"
+          
+          echo "Grafana External IP:"
           kubectl get svc -n solar-system grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'

@@ -1,12 +1,13 @@
 name: deploy-helm
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["terraform-deploy"]
+    types:
+      - completed
 
 jobs:
-  deploy:
+  deploy-using-helm:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo

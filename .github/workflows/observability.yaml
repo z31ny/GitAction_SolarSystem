@@ -1,12 +1,13 @@
 name: deploy-helm-monitoring
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["deploy-helm"]
+    types:
+      - completed
 
 jobs:
-  deploy:
+  deploy-monitoring:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo

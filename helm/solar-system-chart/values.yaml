@@ -23,3 +23,13 @@ resources: {}
 nodeSelector: {}
 tolerations: []
 affinity: []
+
+ingress:
+  enabled: false
+  annotations: {}
+  hosts:
+  - host: solar-system.example.com
+    paths:
+    - path: /
+      pathType: ImplementationSpecific
+  tls: []

@@ -1,92 +1,45 @@
-name: full-deploy
+name: terraform-deploy
 
 on:
-  push:
-    branches:
-      - main
-      - feature_brancheA
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["docker-build"]
+    types:
+      - completed
 
 jobs:
-
   terraform:
-    name: terraform-deploy
+    name: terraform-deployment
     runs-on: ubuntu-latest
+    environment: production
     steps:
-      - uses: actions/checkout@v5
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-      - name: Terraform Init & Apply
-        run: |
-          cd Terraform/team-01
-          terraform init
-          terraform apply -auto-approve
+      - name: Checkout Repo
+        uses: actions/checkout@v5
 
-  deploy-helm:
-    name: deploy-app-helm
-    runs-on: ubuntu-latest
-    needs: terraform
-    steps:
-      - uses: actions/checkout@v5
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4.3.1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - name: Update kubeconfig
-        run: aws eks --region us-east-1 update-kubeconfig --name sprints-cluster-0
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-      - name: Create MongoDB Secret
-        run: |
-          kubectl create namespace solar-system --dry-run=client -o yaml | kubectl apply -f -
-          kubectl create secret generic mongo-credentials \
-            --namespace solar-system \
-            --from-literal=MONGO_URI=${{ vars.MONGO_URI }} \
-            --from-literal=MONGO_USERNAME=${{ vars.MONGO_USERNAME }} \
-            --from-literal=MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
-            --dry-run=client -o yaml | kubectl apply -f -
-      - name: Deploy App via Helm
-        run: helm upgrade --install solar-system ./helm/solar-system-chart --namespace solar-system --create-namespace
-      - name: Verify App Deployment
-        run: |
-          kubectl get pods -n solar-system
-          kubectl get svc -n solar-system
 
-  observability:
-    name: deploy-monitoring
-    runs-on: ubuntu-latest
-    needs: deploy-helm
-    steps:
-      - uses: actions/checkout@v5
-      - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3.1.2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-      - name: Update kubeconfig
-        run: aws eks --region us-east-1 update-kubeconfig --name sprints-cluster-0
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-      - name: Add Helm Repos
+          terraform_version: 1.1.7
+
+      - name: Terraform Init
+        run: terraform init -reconfigure
+        working-directory: ./Terraform/team-01
+
+      - name: Terraform Plan
+        run: terraform plan
+        working-directory: ./Terraform/team-01
+
+      - name: Terraform Apply/Destroy
         run: |
-          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-          helm repo add cribl https://cribl.github.io/helm-charts
-          helm repo update
-      - name: Deploy Monitoring
-        run: |
-          helm upgrade --install monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace
-          helm upgrade --install cribl cribl/cribl --namespace observability --create-namespace
-      - name: Get Monitoring URLs
-        run: |
-          PROM_IP=$(kubectl get svc monitoring-grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          CRIBL_IP=$(kubectl get svc cribl -n observability -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          echo "Grafana: http://$PROM_IP:80"
-          echo "Prometheus: http://$PROM_IP:9090"
-          echo "Cribl: http://$CRIBL_IP:9000"
+          if [ "${{ github.event.inputs.destroy }}" = "yes" ]; then
+            terraform destroy -auto-approve
+          else
+            terraform apply -auto-approve
+          fi
+        working-directory: ./Terraform/team-01

@@ -5,12 +5,21 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+serviceAccount:
+  create: true
+  name: solar-system-sa
+
 service:
   type: LoadBalancer
   port: 80
   targetPort: 3000
 
-env:
-  MONGO_URI: ""
-  MONGO_USERNAME: ""
-  MONGO_PASSWORD: ""
+mongo:
+  uri: ""
+  username: ""
+  password: ""
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: []

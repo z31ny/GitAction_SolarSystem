@@ -1,5 +1,6 @@
 apiVersion: v2
 name: solar-system
-description: Solar System microservice
+description: A Helm chart for deploying Solar System app
+type: application
 version: 0.1.0
 appVersion: "6.7.6"

@@ -1,29 +1,41 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: { ? { include "solar-system.fullname" . } }
+  name: {{ include "solar-system.fullname" . }}
   labels:
-    app: { ? { include "solar-system.name" . } }
+    {{- include "solar-system.labels" . | nindent 4 }}
 spec:
-  replicas: { ? { .Values.replicaCount } }
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: { ? { include "solar-system.name" . } }
+      app: {{ include "solar-system.name" . }}
   template:
     metadata:
       labels:
-        app: { ? { include "solar-system.name" . } }
+        app: {{ include "solar-system.name" . }}
     spec:
+      serviceAccountName: {{ .Values.serviceAccount.name | default (include "solar-system.fullname" .) }}
       containers:
-      - name: { ? { include "solar-system.name" . } }
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        imagePullPolicy: { ? { .Values.image.pullPolicy } }
-        ports:
-        - containerPort: { ? { .Values.service.targetPort } }
-        env:
-        - name: MONGO_URI
-          value: { ? { .Values.env.MONGO_URI | quote } }
-        - name: MONGO_USERNAME
-          value: { ? { .Values.env.MONGO_USERNAME | quote } }
-        - name: MONGO_PASSWORD
-          value: { ? { .Values.env.MONGO_PASSWORD | quote } }
+        - name: solar-system
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-credentials
+                  key: MONGO_URI
+            - name: MONGO_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-credentials
+                  key: MONGO_USERNAME
+            - name: MONGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-credentials
+                  key: MONGO_PASSWORD
+      resources:
+        {{- toYaml .Values.resources | nindent 8 }}

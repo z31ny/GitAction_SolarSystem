@@ -1,13 +1,12 @@
-name: observability
+name: deploy-helm-monitoring
 
 on:
-  workflow_run:
-    workflows: ["deploy-helm"]
-    types:
-      - completed
+  push:
+    branches:
+      - main
 
 jobs:
-  observability:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
@@ -26,36 +25,43 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v3
 
-      - name: Add Helm Repos
+      - name: Create MongoDB Secret
         run: |
-          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-          helm repo add cribl https://cribl.github.io/helm-charts
-          helm repo update
+          kubectl create namespace solar-system --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic mongo-credentials \
+            --namespace solar-system \
+            --from-literal=MONGO_URI=${{ vars.MONGO_URI }} \
+            --from-literal=MONGO_USERNAME=${{ vars.MONGO_USERNAME }} \
+            --from-literal=MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy Prometheus + Grafana
+      - name: Deploy Solar System via Helm
         run: |
-          helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
-            --namespace monitoring --create-namespace
+          helm upgrade --install solar-system ./helm/solar-system-chart \
+            --namespace solar-system --create-namespace
 
-      - name: Deploy Cribl
+      - name: Add Prometheus Helm Repo
+        run: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+
+      - name: Update Helm Repos
+        run: helm repo update
+
+      - name: Install Prometheus
         run: |
-          helm upgrade --install cribl cribl/cribl \
-            --namespace observability --create-namespace
+          helm upgrade --install prometheus prometheus-community/prometheus \
+            --namespace solar-system --create-namespace
 
-      - name: Wait and Get Monitoring URLs
+      - name: Install Grafana
         run: |
-          echo "Waiting for External IPs..."
-          for i in {1..20}; do
-            PROM_IP=$(kubectl get svc monitoring-grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-            CRIBL_IP=$(kubectl get svc cribl -n observability -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-            if [ -n "$PROM_IP" ] && [ -n "$CRIBL_IP" ]; then
-              break
-            fi
-            echo "IPs not yet assigned, retrying in 15s..."
-            sleep 15
-          done
+          helm upgrade --install grafana prometheus-community/grafana \
+            --namespace solar-system --create-namespace \
+            --set adminUser=admin,adminPassword=${{ secrets.GRAFANA_PASSWORD }}
 
-          echo "Access your monitors:"
-          echo "Grafana: http://$PROM_IP:80"
-          echo "Prometheus: http://$PROM_IP:9090"
-          echo "Cribl: http://$CRIBL_IP:9000"
+      - name: Output Service URLs
+        run: |
+          echo "Solar System App:"
+          kubectl get svc -n solar-system solar-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+          echo "Prometheus:"
+          kubectl get svc -n solar-system prometheus-server -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+          echo "Grafana:"
+          kubectl get svc -n solar-system grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'

@@ -1,0 +1,34 @@
+name: coverage
+
+on:
+  workflow_run:
+    workflows: ["unit-test"]
+    types:
+      - completed
+
+jobs:
+  code-coverage:
+    name: code-coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js - 18
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Coverage
+        continue-on-error: true
+        run: npm run coverage
+
+      - name: Archive Coverage results
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: code-coverage-results
+          path: coverage
+          retention-days: 5

@@ -1,0 +1,62 @@
+name: docker-build
+
+on:
+  workflow_run:
+    workflows: ["coverage"]
+    types:
+      - completed
+
+jobs:
+  docker:
+    name: containerization
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    env:
+      MONGO_URI: ${{ vars.MONGO_URI }}
+      MONGO_USERNAME: ${{ vars.MONGO_USERNAME }}
+      MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Docker Login (DockerHub)
+        uses: docker/login-action@v2
+        with:
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: GHCR Login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          push: false
+          tags: ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+
+      - name: Test Docker Image
+        run: |
+          docker run --name solar-system-app -d \
+            -p 3000:3000 \
+            -e MONGO_URI=$MONGO_URI \
+            -e MONGO_USERNAME=$MONGO_USERNAME \
+            -e MONGO_PASSWORD=$MONGO_PASSWORD \
+            ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+          sleep 10
+          wget -q -O - http://127.0.0.1:3000/live | grep live
+          docker stop solar-system-app
+          docker rm solar-system-app
+
+      - name: Push Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: |
+            ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+            ghcr.io/abdullahwahdan/solar-system:${{ github.sha }}

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "{{ include "solar-system-chart.fullname" . }}-test-connection"
+  name: "{{ include "solar-system.fullname" . }}-test-connection"
   labels:
     {{- include "solar-system-chart.labels" . | nindent 4 }}
   annotations:

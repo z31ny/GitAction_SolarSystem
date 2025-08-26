@@ -1,0 +1,61 @@
+name: observability
+
+on:
+  workflow_run:
+    workflows: ["deploy-helm"]
+    types:
+      - completed
+
+jobs:
+  observability:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: aws eks --region us-east-1 update-kubeconfig --name sprints-cluster-0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+      - name: Add Helm Repos
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add cribl https://cribl.github.io/helm-charts
+          helm repo update
+
+      - name: Deploy Prometheus + Grafana
+        run: |
+          helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+            --namespace monitoring --create-namespace
+
+      - name: Deploy Cribl
+        run: |
+          helm upgrade --install cribl cribl/cribl \
+            --namespace observability --create-namespace
+
+      - name: Wait and Get Monitoring URLs
+        run: |
+          echo "Waiting for External IPs..."
+          for i in {1..20}; do
+            PROM_IP=$(kubectl get svc monitoring-grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            CRIBL_IP=$(kubectl get svc cribl -n observability -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            if [ -n "$PROM_IP" ] && [ -n "$CRIBL_IP" ]; then
+              break
+            fi
+            echo "IPs not yet assigned, retrying in 15s..."
+            sleep 15
+          done
+
+          echo "Access your monitors:"
+          echo "Grafana: http://$PROM_IP:80"
+          echo "Prometheus: http://$PROM_IP:9090"
+          echo "Cribl: http://$CRIBL_IP:9000"

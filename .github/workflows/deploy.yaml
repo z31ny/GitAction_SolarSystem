@@ -1,0 +1,58 @@
+name: deploy-helm
+
+on:
+  workflow_run:
+    workflows: ["terraform-deploy"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: aws eks --region us-east-1 update-kubeconfig --name sprints-cluster-0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+      - name: Create MongoDB Secret
+        run: |
+          kubectl create namespace solar-system --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic mongo-credentials \
+            --namespace solar-system \
+            --from-literal=MONGO_URI=${{ secrets.MONGO_URI }} \
+            --from-literal=MONGO_USERNAME=${{ secrets.MONGO_USERNAME }} \
+            --from-literal=MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy Solar System via Helm
+        run: |
+          helm upgrade --install solar-system ./helm/solar-system-chart \
+            --namespace solar-system --create-namespace
+
+      - name: Verify Deployment
+        run: |
+          echo "Pods status in namespace solar-system:"
+          kubectl get pods -n solar-system
+          
+          echo "Waiting for External IP..."
+          for i in {1..10}; do
+            EXTERNAL_IP=$(kubectl get svc -n solar-system -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
+            if [ -n "$EXTERNAL_IP" ]; then
+              echo "External IP: $EXTERNAL_IP"
+              break
+            fi
+            echo "External IP not yet assigned, retrying in 10s..."
+            sleep 10
+          done

@@ -1,10 +1,10 @@
 name: terraform-deploy
 
 on:
-  push:
-    branches:
-      - main
-      - feature_brancheA
+  workflow_run:
+    workflows: ["docker-build"]
+    types:
+      - completed
 
 jobs:
   terraform:

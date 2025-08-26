@@ -1,10 +1,9 @@
 name: deploy-helm
 
 on:
-  workflow_run:
-    workflows: ["terraform-deploy"]
-    types:
-      - completed
+  push:
+    branches:
+      - main
 
 jobs:
   deploy:

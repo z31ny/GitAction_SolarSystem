@@ -13,30 +13,30 @@ jobs:
     strategy:
       matrix:
         nodejs-version: [18, 19, 20]
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
         exclude:
-          - nodejs-version: 18
-            os: macos-latest
+        - nodejs-version: 18
+          os: macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v5
+    - name: Checkout Repo
+      uses: actions/checkout@v5
 
-      - name: Set up Node.js - ${{ matrix.nodejs-version }}
-        uses: actions/setup-node@v4.4.0
-        with:
-          node-version: ${{ matrix.nodejs-version }}
+    - name: Set up Node.js - ${{ matrix.nodejs-version }}
+      uses: actions/setup-node@v4.4.0
+      with:
+        node-version: ${{ matrix.nodejs-version }}
 
-      - name: Install Dependencies
-        run: npm install
+    - name: Install Dependencies
+      run: npm install
 
-      - name: Run Tests
-        id: nodeNodeJs-unit-testing-step
-        run: npm test
+    - name: Run Tests
+      id: nodeNodeJs-unit-testing-step
+      run: npm test
 
-      - name: Archive test results
-        if: always()
-        uses: actions/upload-artifact@v4.6.2
-        with:
-          name: sp-test-results-${{ matrix.os }}-${{ matrix.nodejs-version }}
-          path: test-results.xml
+    - name: archive test results
+      if: steps.nodeNodeJs-unit-testing-step.outcome == 'failure' || steps.nodeNodeJs-unit-testing-step.outcome == 'success'
+      uses: actions/upload-artifact@v4.6.2
+      with:
+        name: sp-test-results-${{matrix.os}}-${{matrix.nodejs-version}}
+        path: test-results.xml

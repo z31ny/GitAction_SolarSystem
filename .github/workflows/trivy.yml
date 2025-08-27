@@ -3,8 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-        - feature_brancheA
-        - main
+        - trivyBranch
 env:
   MONGO_URI: 'mongodb+srv://supercluster.d83jj.mongodb.net/superData'
   MONGO_USERNAME: ${{vars.MONGO_USERNAME}}

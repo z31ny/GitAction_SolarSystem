@@ -54,6 +54,9 @@ jobs:
   docker:
     needs: coverage
     uses: ./.github/workflows/docker.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       push: true
     secrets: inherit

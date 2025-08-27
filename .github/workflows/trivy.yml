@@ -1,0 +1,62 @@
+  trivy-advanced:
+    name: Trivy Advanced Security Scan
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Install Trivy
+        uses: aquasecurity/trivy-action@0.20.0
+
+      - name: Run Selected Trivy Scan
+        run: |
+          echo "Running Trivy Scan with type: ${{ github.event.inputs.scan_type }}"
+          case "${{ github.event.inputs.scan_type }}" in
+            image)
+              trivy image --exit-code 1 --ignore-unfixed=${{ github.event.inputs.ignore_unfixed }} \
+                --severity ${{ github.event.inputs.severity }} \
+                --format table \
+                -o trivy-report.txt \
+                ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+              ;;
+            fs)
+              trivy fs --exit-code 1 --ignore-unfixed=${{ github.event.inputs.ignore_unfixed }} \
+                --severity ${{ github.event.inputs.severity }} \
+                --format table \
+                -o trivy-report.txt .
+              ;;
+            config)
+              trivy config --exit-code 1 --severity ${{ github.event.inputs.severity }} \
+                --format table \
+                -o trivy-report.txt ./Terraform
+              ;;
+            all)
+              echo "🔍 Scanning Docker Image..."
+              trivy image --exit-code 1 --ignore-unfixed=${{ github.event.inputs.ignore_unfixed }} \
+                --severity ${{ github.event.inputs.severity }} \
+                --format table \
+                -o trivy-image-report.txt \
+                ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+
+              echo "📂 Scanning File System..."
+              trivy fs --exit-code 0 --ignore-unfixed=${{ github.event.inputs.ignore_unfixed }} \
+                --severity ${{ github.event.inputs.severity }} \
+                --format table \
+                -o trivy-fs-report.txt .
+
+              echo "⚙️ Scanning Terraform configs..."
+              trivy config --exit-code 0 --severity ${{ github.event.inputs.severity }} \
+                --format table \
+                -o trivy-config-report.txt ./Terraform
+
+              cat trivy-image-report.txt trivy-fs-report.txt trivy-config-report.txt > trivy-report.txt
+              ;;
+          esac
+
+      - name: Upload Trivy Report
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: trivy-advanced-report
+          path: trivy-report.txt

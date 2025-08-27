@@ -129,42 +129,73 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v5
 
-      - name: Install Trivy
-        uses: aquasecurity/trivy-action@0.20.0
-
-      - name: Scan Docker Image for Vulnerabilities
+      - name: Scan Docker Image
         uses: aquasecurity/trivy-action@0.20.0
         with:
-          scan-type: 'image'
-          input: ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
-          format: 'table'
-          exit-code: '1'
+          scan-type: image
+          image-ref: ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+          format: table
+          output: trivy-image-report.txt
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           ignore-unfixed: true
+          exit-code: 1
 
-      - name: Scan Terraform files
+      - name: Generate SBOM (CycloneDX)
         uses: aquasecurity/trivy-action@0.20.0
         with:
-          scan-type: 'config'
-          format: 'table'
-          exit-code: '1'
-          severity: 'HIGH,CRITICAL'
-          ignore-unfixed: true
+          scan-type: image
+          image-ref: ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+          format: cyclonedx
+          output: trivy-sbom.cdx
+          exit-code: 0
+
+      - name: Scan Docker Image (SARIF)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: image
+          image-ref: ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: 0
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Scan Terraform configs
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: config
           scan-ref: ./Terraform
+          format: table
+          output: trivy-terraform-report.txt
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
 
       - name: Scan Source Code for Secrets
         uses: aquasecurity/trivy-action@0.20.0
         with:
-          scan-type: 'fs'
-          format: 'table'
-          exit-code: '0'
-          severity: 'HIGH,CRITICAL'
+          scan-type: fs
+          scan-ref: .
+          format: table
+          output: trivy-secrets-report.txt
+          severity: HIGH,CRITICAL
+          exit-code: 0
 
-      - name: Save Trivy Report
+      - name: Upload Trivy Reports
         if: always()
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: trivy-report
-          path: trivy-report.txt
+          name: trivy-reports
+          path: |
+            trivy-image-report.txt
+            trivy-sbom.cdx
+            trivy-results.sarif
+            trivy-terraform-report.txt
+            trivy-secrets-report.txt
+
+
 
 
     

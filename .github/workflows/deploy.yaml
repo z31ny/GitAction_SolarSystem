@@ -1,10 +1,19 @@
 name: deploy-helm
 
 on:
-  workflow_run:
-    workflows: ["terraform-deploy"]
-    types:
-      - completed
+  workflow_call:
+    inputs:
+      aws_region:
+        description: "AWS region"
+        required: false
+        type: string
+        default: "us-east-1"
+      eks_cluster:
+        description: "EKS cluster name"
+        required: false
+        type: string
+        default: "GP-cluster"
+  workflow_dispatch:
 
 jobs:
   deploy-using-helm:
@@ -18,10 +27,10 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ inputs.aws_region }}
 
       - name: Update kubeconfig
-        run: aws eks --region us-east-1 update-kubeconfig --name GP-cluster
+        run: aws eks --region ${{ inputs.aws_region }} update-kubeconfig --name ${{ inputs.eks_cluster }}
 
       - name: Install Helm
         uses: azure/setup-helm@v3

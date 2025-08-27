@@ -1,16 +1,35 @@
 name: terraform-deploy
 
 on:
-  workflow_run:
-    workflows: ["docker-build"]
-    types:
-      - completed
+  workflow_call:
+    inputs:
+      destroy:
+        description: "Set to 'yes' to run terraform destroy"
+        required: false
+        type: string
+        default: "no"
+      aws_region:
+        description: "AWS region"
+        required: false
+        type: string
+        default: "us-east-1"
+      working_directory:
+        description: "Terraform working directory"
+        required: false
+        type: string
+        default: "./Terraform/team-01"
+      environment:
+        description: "Deployment environment"
+        required: false
+        type: string
+        default: "production"
+  workflow_dispatch:
 
 jobs:
   terraform:
     name: terraform-deployment
     runs-on: ubuntu-latest
-    environment: production
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v5
@@ -20,7 +39,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ inputs.aws_region }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3.1.2
@@ -29,17 +48,19 @@ jobs:
 
       - name: Terraform Init
         run: terraform init -reconfigure
-        working-directory: ./Terraform/team-01
+        working-directory: ${{ inputs.working_directory }}
 
       - name: Terraform Plan
         run: terraform plan
-        working-directory: ./Terraform/team-01
+        working-directory: ${{ inputs.working_directory }}
 
       - name: Terraform Apply/Destroy
+        env:
+          DESTROY: ${{ inputs.destroy }}
         run: |
-          if [ "${{ github.event.inputs.destroy }}" = "yes" ]; then
+          if [ "$DESTROY" = "yes" ]; then
             terraform destroy -auto-approve
           else
             terraform apply -auto-approve
           fi
-        working-directory: ./Terraform/team-01
+        working-directory: ${{ inputs.working_directory }}

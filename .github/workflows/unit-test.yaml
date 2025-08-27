@@ -1,46 +1,66 @@
 name: unit-test
 
 on:
+  workflow_call:
+    inputs:
+      node_versions:
+        description: "Comma-separated Node.js versions"
+        required: false
+        type: string
+        default: "18,20"
+      os_list:
+        description: "Comma-separated OS runners"
+        required: false
+        type: string
+        default: "ubuntu-latest"
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 env:
-  MONGO_URI: 'mongodb+srv://supercluster.d83jj.mongodb.net/superData'
-  MONGO_USERNAME: ${{vars.MONGO_USERNAME}}
-  MONGO_PASSWORD: ${{secrets.MONGO_PASSWORD}}
+  MONGO_URI: ${{ vars.MONGO_URI }}
+  MONGO_USERNAME: ${{ vars.MONGO_USERNAME }}
+  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
 
 jobs:
+  build_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix-json: ${{ steps.mk.outputs.matrix-json }}
+    steps:
+      - id: mk
+        run: |
+          VERSIONS="${{ inputs.node_versions }}"
+          if [ -z "$VERSIONS" ]; then VERSIONS="18,20"; fi
+          OS_STR="${{ inputs.os_list }}"
+          if [ -z "$OS_STR" ]; then OS_STR="ubuntu-latest"; fi
+          NODE_JSON="[\"$(echo "$VERSIONS" | sed 's/,/\",\"/g')\"]"
+          OS_JSON="[\"$(echo "$OS_STR" | sed 's/,/\",\"/g')\"]"
+          echo "matrix-json={\"nodejs\":$NODE_JSON,\"os\":$OS_JSON}" >> $GITHUB_OUTPUT
+
   unit_testing:
     name: unit_testing
+    needs: build_matrix
     strategy:
-      matrix:
-        nodejs-version: [18, 19, 20]
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
-        exclude:
-        - nodejs-version: 18
-          os: macos-latest
+      matrix: ${{ fromJson(needs.build_matrix.outputs.matrix-json) }}
     runs-on: ${{ matrix.os }}
     steps:
-    - name: Checkout Repo
-      uses: actions/checkout@v5
+      - name: Checkout Repo
+        uses: actions/checkout@v5
 
-    - name: Set up Node.js - ${{ matrix.nodejs-version }}
-      uses: actions/setup-node@v4.4.0
-      with:
-        node-version: ${{ matrix.nodejs-version }}
+      - name: Set up Node.js - ${{ matrix.nodejs }}
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: ${{ matrix.nodejs }}
 
-    - name: Install Dependencies
-      run: npm install
+      - name: Install Dependencies
+        run: npm install
 
-    - name: Run Tests
-      id: nodeNodeJs-unit-testing-step
-      run: npm test
+      - name: Run Tests
+        id: nodeNodeJs-unit-testing-step
+        run: npm test
 
-    - name: archive test results
-      if: steps.nodeNodeJs-unit-testing-step.outcome == 'failure' || steps.nodeNodeJs-unit-testing-step.outcome == 'success'
-      uses: actions/upload-artifact@v4.6.2
-      with:
-        name: sp-test-results-${{matrix.os}}-${{matrix.nodejs-version}}
-        path: test-results.xml
+      - name: archive test results
+        if: steps.nodeNodeJs-unit-testing-step.outcome == 'failure' || steps.nodeNodeJs-unit-testing-step.outcome == 'success'
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: sp-test-results-${{matrix.os}}-${{matrix.nodejs}}
+          path: test-results.xml

@@ -60,3 +60,5 @@
         with:
           name: trivy-advanced-report
           path: trivy-report.txt
+  terraform:
+    needs: [docker, code-coverage, unit_testing, trivy-advanced]

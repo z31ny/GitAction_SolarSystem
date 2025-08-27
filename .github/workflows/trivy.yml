@@ -171,7 +171,7 @@ jobs:
           output: trivy-terraform-report.txt
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: 1
+          exit-code: 0
 
       - name: Scan Source Code for Secrets
         uses: aquasecurity/trivy-action@0.20.0

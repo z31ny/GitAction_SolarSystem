@@ -122,10 +122,58 @@ jobs:
             tags: |
               ${{vars.DOCKER_USERNAME}}/solar-system:${{github.sha}}
               ghcr.io/abdullahwahdan/solar-system:fd763e67db03ecb5bb601a048c5f913a8ba9bdcb
+  trivy-scan:
+      name: Trivy Security Scan
+      needs: docker
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout Repo
+          uses: actions/checkout@v5
+    
 
+        - name: Install Trivy
+          uses: aquasecurity/trivy-action@0.20.0
+    
+
+        - name: Scan Docker Image for Vulnerabilities
+          uses: aquasecurity/trivy-action@0.20.0
+          with:
+            image-ref: ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+            format: 'table'
+            exit-code: '1'   
+            ignore-unfixed: true
+    
+
+        - name: Scan Terraform files
+          uses: aquasecurity/trivy-action@0.20.0
+          with:
+            scan-type: 'config'
+            format: 'table'
+            exit-code: '1'
+            severity: 'HIGH,CRITICAL'
+            ignore-unfixed: true
+            scan-ref: ./Terraform
+    
+
+        - name: Scan Source Code for Secrets
+          uses: aquasecurity/trivy-action@0.20.0
+          with:
+            scan-type: 'fs'
+            format: 'table'
+            exit-code: '0'   
+            severity: 'HIGH,CRITICAL'
+            
+       - name: Save Trivy Report
+          if: always()
+          uses: actions/upload-artifact@v4.6.2
+          with:
+            name: trivy-report
+            path: trivy-report.txt
+
+    
   terraform:
         name: terraform-deployment
-        needs: [docker, code-coverage, unit_testing]
+        needs: [docker, code-coverage, unit_testing, trivy-scan]
         runs-on: ubuntu-latest
         environment: production
         steps:

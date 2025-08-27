@@ -135,7 +135,8 @@ jobs:
       - name: Scan Docker Image for Vulnerabilities
         uses: aquasecurity/trivy-action@0.20.0
         with:
-          image-ref: ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+          scan-type: 'image'
+          input: ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true

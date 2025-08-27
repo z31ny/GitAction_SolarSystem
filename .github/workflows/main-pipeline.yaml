@@ -1,0 +1,304 @@
+name: main-pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "production"
+        type: choice
+        options: [development, staging, production]
+      destroy:
+        description: "Set to 'yes' to run terraform destroy"
+        required: false
+        default: "no"
+        type: choice
+        options: [no, yes]
+      node_versions:
+        description: "Comma-separated Node.js versions for unit tests"
+        required: false
+        default: "18,20"
+      eks_cluster:
+        description: "EKS cluster name for deployment"
+        required: false
+        default: "GP-cluster"
+      aws_region:
+        description: "AWS region"
+        required: false
+        default: "us-east-1"
+
+  push:
+    branches:
+      - main
+
+env:
+  # Centralized defaults (overridable by repository/environment variables and secrets)
+  MONGO_URI: ${{ vars.MONGO_URI }}
+  MONGO_USERNAME: ${{ vars.MONGO_USERNAME }}
+  MONGO_PASSWORD: ${{ secrets.MONGO_PASSWORD }}
+  DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+
+jobs:
+  unit_test:
+    name: unit-test (matrix)
+    runs-on: ubuntu-latest
+    outputs:
+      matrix-json: ${{ steps.build-matrix.outputs.matrix-json }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Build dynamic matrix from input
+        id: build-matrix
+        run: |
+          VERSIONS="${{ github.event.inputs.node_versions }}"
+          if [ -z "$VERSIONS" ]; then VERSIONS="18,20"; fi
+          OS_LIST='["ubuntu-latest"]'
+          NODE_LIST="[\"$(echo "$VERSIONS" | sed 's/,/\",\"/g')\"]"
+          echo "matrix-json={\"nodejs\":$NODE_LIST,\"os\":$OS_LIST}" >> $GITHUB_OUTPUT
+
+  unit_test_matrix:
+    needs: unit_test
+    strategy:
+      matrix: ${{ fromJson(needs.unit_test.outputs.matrix-json) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js - ${{ matrix.nodejs }}
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: ${{ matrix.nodejs }}
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Tests
+        run: npm test
+
+  coverage:
+    name: coverage
+    needs: unit_test_matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js - 18
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Coverage
+        continue-on-error: true
+        run: npm run coverage
+
+      - name: Archive Coverage results
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: code-coverage-results
+          path: coverage
+          retention-days: 5
+
+  docker:
+    name: docker-build-and-push
+    needs: [unit_test_matrix, coverage]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    env:
+      MONGO_URI: ${{ env.MONGO_URI }}
+      MONGO_USERNAME: ${{ env.MONGO_USERNAME }}
+      MONGO_PASSWORD: ${{ env.MONGO_PASSWORD }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Docker Login (DockerHub)
+        uses: docker/login-action@v2
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: GHCR Login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          push: false
+          tags: ${{ env.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+
+      - name: Test Docker Image
+        run: |
+          docker run --name solar-system-app -d \
+            -p 3000:3000 \
+            -e MONGO_URI=$MONGO_URI \
+            -e MONGO_USERNAME=$MONGO_USERNAME \
+            -e MONGO_PASSWORD=$MONGO_PASSWORD \
+            ${{ env.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+          sleep 10
+          wget -q -O - http://127.0.0.1:3000/live | grep live
+          docker stop solar-system-app
+          docker rm solar-system-app
+
+      - name: Push Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/solar-system:${{ github.sha }}
+
+  terraform:
+    name: terraform-deploy
+    needs: docker
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'production' }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.aws_region || 'us-east-1' }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: 1.1.7
+
+      - name: Terraform Init
+        run: terraform init -reconfigure
+        working-directory: ./Terraform/team-01
+
+      - name: Terraform Plan
+        run: terraform plan
+        working-directory: ./Terraform/team-01
+
+      - name: Terraform Apply/Destroy
+        env:
+          DESTROY: ${{ github.event.inputs.destroy || 'no' }}
+        run: |
+          if [ "$DESTROY" = "yes" ]; then
+            terraform destroy -auto-approve
+          else
+            terraform apply -auto-approve
+          fi
+        working-directory: ./Terraform/team-01
+
+  deploy_helm:
+    name: deploy-helm
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.aws_region || 'us-east-1' }}
+
+      - name: Update kubeconfig
+        run: aws eks --region ${{ github.event.inputs.aws_region || 'us-east-1' }} update-kubeconfig --name ${{ github.event.inputs.eks_cluster || 'GP-cluster' }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+      - name: Create MongoDB Secret
+        run: |
+          kubectl create namespace solar-system --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic mongo-credentials \
+            --namespace solar-system \
+            --from-literal=MONGO_URI=${{ env.MONGO_URI }} \
+            --from-literal=MONGO_USERNAME=${{ env.MONGO_USERNAME }} \
+            --from-literal=MONGO_PASSWORD=${{ env.MONGO_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy Solar System via Helm
+        run: |
+          helm upgrade --install solar-system ./helm/solar-system-chart \
+            --namespace solar-system --create-namespace
+
+  observability:
+    name: deploy-helm-monitoring
+    needs: deploy_helm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v5
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4.3.1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ github.event.inputs.aws_region || 'us-east-1' }}
+
+      - name: Update kubeconfig
+        run: aws eks --region ${{ github.event.inputs.aws_region || 'us-east-1' }} update-kubeconfig --name ${{ github.event.inputs.eks_cluster || 'GP-cluster' }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+
+      - name: Create MongoDB Secret
+        run: |
+          kubectl create namespace solar-system --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic mongo-credentials \
+            --namespace solar-system \
+            --from-literal=MONGO_URI=${{ env.MONGO_URI }} \
+            --from-literal=MONGO_USERNAME=${{ env.MONGO_USERNAME }} \
+            --from-literal=MONGO_PASSWORD=${{ env.MONGO_PASSWORD }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Add Prometheus Helm Repo
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+
+      - name: Install Prometheus
+        run: |
+          helm upgrade --install prometheus prometheus-community/prometheus \
+            --namespace solar-system --create-namespace
+
+      - name: Add Grafana Helm Repo
+        run: |
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo update
+
+      - name: Install Grafana
+        run: |
+          helm upgrade --install grafana grafana/grafana \
+            --namespace solar-system --create-namespace \
+            --set adminUser=admin,adminPassword=${{ secrets.GRAFANA_PASSWORD }} \
+            --set service.type=LoadBalancer
+
+      - name: List all services in solar-system
+        run: |
+          echo "All services in solar-system namespace:"
+          kubectl get svc -n solar-system
+
+      - name: Output External IPs
+        run: |
+          echo "Fetching External IPs..."
+          for svc in $(kubectl get svc -n solar-system -o jsonpath='{.items[*].metadata.name}'); do
+            ip=$(kubectl get svc $svc -n solar-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            echo "$svc External IP: $ip"
+          done
+

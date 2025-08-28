@@ -1,10 +1,12 @@
 name: deploy-helm
 
 on:
-  workflow_run:
-    workflows: ["terraform-deploy"]
-    types:
-      - completed
+  workflow_call:
+    inputs:
+      pipeline_input:
+        description: 'Input passed from the main pipeline'
+        required: true
+        type: string
 
 jobs:
   deploy-using-helm:

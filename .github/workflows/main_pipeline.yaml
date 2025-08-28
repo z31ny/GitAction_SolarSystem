@@ -1,0 +1,46 @@
+name: Main Pipeline
+
+on:
+  workflow_dispatch:
+
+jobs:
+  unit_test:
+    uses: ./.github/workflows/unit-test.yaml
+    with:
+      pipeline_input: "main pipeline run"
+
+  coverage:
+    needs: unit_test
+    uses: ./.github/workflows/coverage.yaml
+    with:
+      pipeline_input: "main pipeline run"
+
+  docker:
+    needs: coverage
+    uses: ./.github/workflows/docker.yaml
+    with:
+      pipeline_input: "main pipeline run"
+
+  trivy:
+    needs: docker
+    uses: ./.github/workflows/trivy.yml
+    with:
+      pipeline_input: "main pipeline run"
+
+  terraform:
+    needs: trivy
+    uses: ./.github/workflows/terraform.yaml
+    with:
+      pipeline_input: "main pipeline run"
+
+  deploy:
+    needs: terraform
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      pipeline_input: "main pipeline run"
+
+  observability:
+    needs: deploy
+    uses: ./.github/workflows/observability.yaml
+    with:
+      pipeline_input: "main pipeline run"

@@ -7,6 +7,10 @@ on:
         description: 'Indicates if the Terraform resources should be destroyed'
         required: false
         type: string
+      pipeline_input:
+        description: 'Input value passed from the main pipeline'
+        required: true
+        type: string
 
 jobs:
   terraform:

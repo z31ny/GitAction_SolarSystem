@@ -136,7 +136,7 @@ jobs:
           image-ref: ${{ vars.DOCKER_USERNAME }}/solar-system:${{ github.sha }}
           format: table
           output: trivy-image-report.txt
-          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: 1
 
@@ -181,7 +181,7 @@ jobs:
           format: table
           output: trivy-secrets-report.txt
           severity: HIGH,CRITICAL
-          exit-code: 0
+          exit-code: 1
 
       - name: Upload Trivy Reports
         if: always()

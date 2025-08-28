@@ -1,10 +1,12 @@
 name: terraform-deploy
 
 on:
-  workflow_run:
-    workflows: ["docker-build"]
-    types:
-      - completed
+  workflow_call:
+    inputs:
+      destroy:
+        description: 'Indicates if the Terraform resources should be destroyed'
+        required: false
+        type: string
 
 jobs:
   terraform:
@@ -37,7 +39,7 @@ jobs:
 
       - name: Terraform Apply/Destroy
         run: |
-          if [ "${{ github.event.inputs.destroy }}" = "yes" ]; then
+          if [ "${{ inputs.destroy }}" = "true" ]; then
             terraform destroy -auto-approve
           else
             terraform apply -auto-approve

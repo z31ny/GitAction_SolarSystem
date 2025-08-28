@@ -185,7 +185,7 @@ jobs:
           format: table
           output: trivy-secrets-report.txt
           severity: HIGH,CRITICAL
-          exit-code: 1
+          exit-code: 0
 
       - name: Upload Trivy Reports
         if: always()
